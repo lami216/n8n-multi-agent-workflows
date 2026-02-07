@@ -1,5 +1,5 @@
 {
-  "name": "REDACTED",
+  "name": "Supervisor Agent",
   "nodes": [
     {
       "parameters": {
@@ -8,44 +8,50 @@
         ],
         "additionalFields": {}
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
+      "id": "1",
+      "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
       "position": [
-        -1260,
-        580
+        -1000,
+        200
       ],
       "webhookId": "REDACTED",
       "credentials": "REDACTED"
     },
     {
       "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "text",
+              "name": "text",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            },
+            {
+              "id": "chat_id",
+              "name": "chat_id",
+              "value": "={{ $json.message.chat.id }}",
+              "type": "string"
+            },
+            {
+              "id": "request_id",
+              "name": "request_id",
+              "value": "={{ $now.toISOString() + '-' + $json.message.chat.id + '-' + $json.message.message_id }}",
+              "type": "string"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1,
+      "id": "2",
+      "name": "Set Incoming Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
       "position": [
-        -720,
-        880
-      ],
-      "credentials": "REDACTED"
-    },
-    {
-      "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "contextWindowLength": 10
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
-      "typeVersion": 1.2,
-      "position": [
-        -320,
-        840
+        -780,
+        200
       ]
     },
     {
@@ -62,11 +68,11 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.message.voice.file_id }}",
-                    "rightValue": "",
+                    "leftValue": "={{ $json.text }}",
+                    "rightValue": "ابدأ",
                     "operator": {
                       "type": "string",
-                      "operation": "exists",
+                      "operation": "equals",
                       "singleValue": true
                     }
                   }
@@ -74,119 +80,214 @@
                 "combinator": "and"
               },
               "renameOutput": true,
-              "outputKey": "Audio"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "REDACTED",
-                    "leftValue": "={{ $json.message.text }}",
-                    "rightValue": "",
-                    "operator": {
-                      "type": "string",
-                      "operation": "exists",
-                      "singleValue": true
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "text"
+              "outputKey": "Approval"
             }
           ]
         },
         "options": {}
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
+      "id": "3",
+      "name": "Is Approval?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -1020,
-        580
+        -560,
+        200
       ]
     },
     {
       "parameters": {
-        "resource": "file",
-        "fileId": "={{ $json.message.voice.file_id }}"
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.chat_id }}",
+        "contextWindowLength": 12
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
+      "id": "4",
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.2,
+      "position": [
+        -120,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "أنت مشرف محادثة طبيعي. تحدث كإنسان بدون سرد خطوات أو قوائم طويلة. \n- لو الطلب غير واضح، اسأل 1-2 أسئلة قصيرة فقط.\n- لو الطلب واضح، رد بجملة قصيرة مثل: \"تمام، أبدأ؟\" ثم انتظر كلمة الموافقة: ابدأ\n- لا تُظهر أي JSON أو حالات داخلية."
+        }
+      },
+      "id": "5",
+      "name": "Supervisor",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -180,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.message.content }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6",
+      "name": "Telegram Reply",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        -740,
-        380
+        40,
+        200
       ],
       "webhookId": "REDACTED",
       "credentials": "REDACTED"
     },
     {
       "parameters": {
-        "resource": "audio",
-        "operation": "transcribe",
-        "options": {}
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "استخلص طلب التغيير من سياق المحادثة السابقة. أعد JSON فقط بدون شرح.\nالشكل المطلوب:\n{\n  \"goal\": \"...\",\n  \"details\": \"...\",\n  \"scope_files\": [\"...\"],\n  \"constraints\": [\"...\"]\n}\nإذا لم تذكر ملفات محددة اجعل scope_files مصفوفة فارغة."
+        }
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1.6,
+      "id": "7",
+      "name": "Extract Change Request",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
       "position": [
-        -520,
-        380
-      ],
-      "credentials": "REDACTED"
+        -180,
+        520
+      ]
     },
     {
       "parameters": {
         "assignments": {
           "assignments": [
             {
-              "id": "REDACTED",
-              "name": "REDACTED",
-              "value": "REDACTED",
-              "type": "string"
+              "id": "change_request",
+              "name": "change_request",
+              "value": "={{ JSON.parse($json.message.content) }}",
+              "type": "json"
             }
           ]
         },
         "options": {}
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
+      "id": "8",
+      "name": "Parse Change Request",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -700,
-        620
+        40,
+        520
       ]
     },
     {
       "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "={{ $json.output }}",
-        "additionalFields": {
-          "appendAttribution": false
+        "assignments": {
+          "assignments": [
+            {
+              "id": "contract",
+              "name": "contract",
+              "value": "={{ {\n  request_id: $json.request_id,\n  project: {\n    key: 'shop3',\n    repo_owner: 'REPLACE_ME',\n    repo_name: 'REPLACE_ME',\n    base_branch: 'main',\n    server_path: '/var/www/shop3',\n    pm2_process: 'shop3-api',\n    frontend_folder: 'frontend'\n  },\n  change_request: $json.change_request,\n  spec: {\n    technical_spec: '',\n    acceptance_criteria: '',\n    edge_cases: '',\n    non_goals: ''\n  },\n  prompts: {\n    programmer_prompt: ''\n  },\n  code_output: {\n    patch_diff: '',\n    files_changed: [],\n    notes: ''\n  },\n  pr: {\n    branch: '',\n    title: '',\n    body: '',\n    url: '',\n    merged: false\n  },\n  status: 'ENGINEERING_PROMPT',\n  logs: []\n} }}",
+              "type": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9",
+      "name": "Init Contract",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'project=' + JSON.stringify($json.contract.project) + '\nchange_request=' + JSON.stringify($json.contract.change_request) }}",
+        "options": {
+          "systemMessage": "أنت مهندس برومبت. اكتب المواصفات التقنية باختصار ووضوح.\nالمدخل: project + change_request.\nالمخرج: JSON فقط يحتوي:\n{\n  \"technical_spec\": \"...\",\n  \"acceptance_criteria\": [\"...\"],\n  \"edge_cases\": [\"...\"],\n  \"non_goals\": [\"...\"],\n  \"programmer_prompt\": \"...\"\n}\nقيود مهمة للـ programmer_prompt:\n- تغييرات أقل ما يمكن وبشكل آمن.\n- لا تعيد هيكلة إلا عند الضرورة.\n- لا تسرب أسرار.\n- احترام وجود مجلد frontend.\n- اطلب إخراج Unified Diff Patch.\n"
         }
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "id": "10",
+      "name": "Prompt Engineer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
       "position": [
-        740,
-        720
-      ],
-      "webhookId": "REDACTED",
-      "credentials": "REDACTED"
+        480,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "contract",
+              "name": "contract",
+              "value": "={{ {\n  ...$json.contract,\n  spec: {\n    technical_spec: JSON.parse($json.message.content).technical_spec,\n    acceptance_criteria: JSON.parse($json.message.content).acceptance_criteria,\n    edge_cases: JSON.parse($json.message.content).edge_cases,\n    non_goals: JSON.parse($json.message.content).non_goals\n  },\n  prompts: {\n    programmer_prompt: JSON.parse($json.message.content).programmer_prompt\n  },\n  status: 'CODING'\n} }}",
+              "type": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "11",
+      "name": "Update Contract With Spec",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        700,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.contract.prompts.programmer_prompt }}",
+        "options": {
+          "systemMessage": "أنت مبرمج. التزم بالتعليمات بدقة.\nالمخرج: JSON فقط بالشكل التالي:\n{\n  \"patch_diff\": \"...\",\n  \"files_changed\": [\"...\"],\n  \"notes\": \"...\",\n  \"needs_clarification\": false,\n  \"question\": \"\"\n}\nقيود مهمة:\n- لا تخترع ملفات غير موجودة.\n- لو غير متأكد من الملفات، اجعل needs_clarification=true واكتب سؤالاً واحداً قصيراً في question.\n- patch_diff يجب أن يكون Unified Diff."
+        }
+      },
+      "id": "12",
+      "name": "Programmer Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        920,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "code_output",
+              "name": "code_output",
+              "value": "={{ JSON.parse($json.message.content) }}",
+              "type": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "13",
+      "name": "Parse Programmer Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1140,
+        520
+      ]
     },
     {
       "parameters": {
@@ -199,12 +300,11 @@
           },
           "conditions": [
             {
-              "id": "REDACTED",
-              "leftValue": "={{ $('Telegram Trigger').item.json.message.voice.file_id }}",
-              "rightValue": "",
+              "leftValue": "={{ $json.code_output.needs_clarification }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "exists",
+                "type": "boolean",
+                "operation": "isEqual",
                 "singleValue": true
               }
             }
@@ -213,188 +313,153 @@
         },
         "options": {}
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
+      "id": "14",
+      "name": "Needs Clarification?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        100,
-        460
+        1360,
+        520
       ]
     },
     {
       "parameters": {
-        "operation": "sendAudio",
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "binaryData": true,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "contract",
+              "name": "contract",
+              "value": "={{ {\n  ...$json.contract,\n  code_output: $json.code_output,\n  status: 'DISCUSSING'\n} }}",
+              "type": "json"
+            },
+            {
+              "id": "clarification",
+              "name": "clarification",
+              "value": "={{ $json.code_output.question || 'تحتاج توضيح بسيط حول الملفات المطلوبة.' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "15",
+      "name": "Set Clarification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1560,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.clarification }}",
         "additionalFields": {
-          "fileName": "data.mpga"
+          "appendAttribution": false
         }
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
+      "id": "16",
+      "name": "Telegram Clarification",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        980,
-        300
+        1760,
+        380
       ],
       "webhookId": "REDACTED",
       "credentials": "REDACTED"
     },
     {
       "parameters": {
-        "resource": "audio",
-        "input": "={{ $('Supervisor AI Agent').item.json.output }}",
-        "options": {}
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1.6,
-      "position": [
-        580,
-        140
-      ],
-      "credentials": "REDACTED"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.elevenlabs.io/v1/text-to-speech/SAz9YHcvj6GT2YYXdXww",
-        "sendHeaders": true,
-        "headerParameters": "REDACTED",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"text\": \"{{ JSON.stringify($json.message.content).replace(/(^\\\"|\\\"$)/g, '') }}\"\n}",
-        "options": {}
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        740,
-        460
-      ]
-    },
-    {
-      "parameters": {
-        "documentId": "REDACTED",
-        "sheetName": "REDACTED",
-        "options": {}
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "n8n-nodes-base.googleSheetsTool",
-      "typeVersion": 4.5,
-      "position": [
-        -160,
-        880
-      ],
-      "credentials": "REDACTED"
-    },
-    {
-      "parameters": {
-        "name": "REDACTED",
-        "description": "Call this tool to ake action in email",
-        "workflowId": "REDACTED"
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        0,
-        860
-      ]
-    },
-    {
-      "parameters": {
-        "name": "REDACTED",
-        "description": "Call this tool to manage the calendar.",
-        "workflowId": "REDACTED"
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        180,
-        880
-      ]
-    },
-    {
-      "parameters": {
-        "name": "REDACTED",
-        "description": "Call this tool to search the internet and answer the user's questions.",
-        "workflowId": "REDACTED"
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        380,
-        860
-      ]
-    },
-    {
-      "parameters": {
-        "model": "deepseek-r1-distill-llama-70b",
-        "options": {}
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
-      "typeVersion": 1,
-      "position": [
-        -540,
-        820
-      ],
-      "credentials": "REDACTED"
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.text }}",
-        "options": {
-          "systemMessage": "=Summarize the following incoming data: {{ $json.output }}.\n\nFor calendar events, include only the event name and time.\nFor emails, provide only the email title and a brief summary of the body, excluding any timestamps.\nEnsure the output is in plain text format, without any symbols or markdown formatting."
-        }
-      },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.7,
-      "position": [
-        -280,
-        420
-      ]
-    },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "REDACTED",
-          "mode": "list",
-          "cachedResultName": "REDACTED"
-        },
-        "messages": {
-          "values": [
+        "assignments": {
+          "assignments": [
             {
-              "content": "=Summarize this incoming information:  {{ $json.output }}. if  asked forFor the calendar events provide only the name of the event and time. \n\nif asked for email provide just title of the email and summary of the body. no time\n\nOutput only plain text, there should be no markdown formatting or  any symbols."
+              "id": "contract",
+              "name": "contract",
+              "value": "={{ {\n  ...$json.contract,\n  code_output: $json.code_output,\n  status: 'PR_CREATING'\n} }}",
+              "type": "json"
             }
           ]
         },
         "options": {}
       },
-      "id": "REDACTED",
-      "name": "REDACTED",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1.6,
+      "id": "17",
+      "name": "Set PR Creating",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
       "position": [
-        300,
-        400
+        1560,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "github_pr_agent",
+        "options": {}
+      },
+      "id": "18",
+      "name": "Call github_pr_agent",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "contract",
+              "name": "contract",
+              "value": "={{ {\n  ...$json.contract,\n  pr: $json.pr || $json.contract.pr,\n  status: 'WAITING_MERGE'\n} }}",
+              "type": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "19",
+      "name": "Set Waiting Merge",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1960,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ 'تم إنشاء طلب المراجعة: ' + ($json.contract.pr.url || 'الرابط غير متوفر') + '\\nادمجه عندما تكون جاهزًا.' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "20",
+      "name": "Telegram PR Notice",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        640
+      ],
+      "webhookId": "REDACTED",
+      "credentials": "REDACTED"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "21",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        200
       ],
       "credentials": "REDACTED"
     }
@@ -405,7 +470,36 @@
       "main": [
         [
           {
-            "node": "Switch",
+            "node": "Set Incoming Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Is Approval?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Approval?": {
+      "main": [
+        [
+          {
+            "node": "Extract Change Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supervisor",
             "type": "main",
             "index": 0
           }
@@ -416,165 +510,189 @@
       "ai_memory": [
         [
           {
-            "node": "Supervisor AI Agent",
+            "node": "Supervisor",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "Extract Change Request",
             "type": "ai_memory",
             "index": 0
           }
         ]
       ]
     },
-    "Switch": {
+    "Supervisor": {
       "main": [
         [
           {
-            "node": "download a file",
+            "node": "Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Change Request": {
+      "main": [
+        [
+          {
+            "node": "Parse Change Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Change Request": {
+      "main": [
+        [
+          {
+            "node": "Init Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Contract": {
+      "main": [
+        [
+          {
+            "node": "Prompt Engineer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Engineer Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Contract With Spec",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contract With Spec": {
+      "main": [
+        [
+          {
+            "node": "Programmer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Programmer Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Programmer Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Programmer Output": {
+      "main": [
+        [
+          {
+            "node": "Needs Clarification?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Clarification?": {
+      "main": [
+        [
+          {
+            "node": "Set Clarification",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Edit Fields",
+            "node": "Set PR Creating",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "download a file": {
+    "Set Clarification": {
       "main": [
         [
           {
-            "node": "OpenAI",
+            "node": "Telegram Clarification",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI": {
+    "Set PR Creating": {
       "main": [
         [
           {
-            "node": "Supervisor AI Agent",
+            "node": "Call github_pr_agent",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Edit Fields": {
+    "Call github_pr_agent": {
       "main": [
         [
           {
-            "node": "Supervisor AI Agent",
+            "node": "Set Waiting Merge",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "If": {
+    "Set Waiting Merge": {
       "main": [
         [
           {
-            "node": "Summarise",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Telegram",
+            "node": "Telegram PR Notice",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request": {
-      "main": [
-        [
-          {
-            "node": "Telegram1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Contacts Database": {
-      "ai_tool": [
-        [
-          {
-            "node": "Supervisor AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Email Agent": {
-      "ai_tool": [
-        [
-          {
-            "node": "Supervisor AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Calendar Agent": {
-      "ai_tool": [
-        [
-          {
-            "node": "Supervisor AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Research Agent": {
-      "ai_tool": [
-        [
-          {
-            "node": "Supervisor AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Groq Chat Model": {
+    "OpenAI Chat Model": {
       "ai_languageModel": [
         [
           {
-            "node": "Supervisor AI Agent",
+            "node": "Supervisor",
             "type": "ai_languageModel",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Supervisor AI Agent": {
-      "main": [
-        [
+          },
           {
-            "node": "If",
-            "type": "main",
+            "node": "Extract Change Request",
+            "type": "ai_languageModel",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Summarise": {
-      "main": [
-        [
+          },
           {
-            "node": "HTTP Request",
-            "type": "main",
+            "node": "Prompt Engineer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Programmer Agent",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -585,10 +703,10 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "e1fec910-ebaf-4797-8f28-a9049a4ddcb0",
+  "versionId": "REDACTED",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "265e9afef49d6b10585beb179464d9e772213283f480821c161bdee127649cfd"
+    "instanceId": "REDACTED"
   },
   "id": "REDACTED",
   "tags": []
