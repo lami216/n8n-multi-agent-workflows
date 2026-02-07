@@ -7,7 +7,8 @@
       "base_branch": "main",
       "server_path": "/var/www/shop3",
       "pm2_process": "shop3-api",
-      "frontend_folder": "frontend"
+      "frontend_folder": "frontend",
+      "github_pr_workflow_id": "REPLACE_ME_ID"
     }
   ]
 }

@@ -68,11 +68,11 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.text }}",
-                    "rightValue": "ابدأ",
+                    "leftValue": "={{ $json.is_approval }}",
+                    "rightValue": true,
                     "operator": {
-                      "type": "string",
-                      "operation": "equals",
+                      "type": "boolean",
+                      "operation": "isTrue",
                       "singleValue": true
                     }
                   }
@@ -97,23 +97,8 @@
     },
     {
       "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "={{ $json.chat_id }}",
-        "contextWindowLength": 12
-      },
-      "id": "4",
-      "name": "Window Buffer Memory",
-      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
-      "typeVersion": 1.2,
-      "position": [
-        -120,
-        360
-      ]
-    },
-    {
-      "parameters": {
         "promptType": "define",
-        "text": "={{ $json.text }}",
+        "text": "={{ 'conversation_summary=' + ($json.conversation_summary || '') + '\\nrecent_messages=' + ($json.conversation_tail_recent_formatted || '') + '\\nuser_message=' + $json.text }}",
         "options": {
           "systemMessage": "أنت مشرف محادثة طبيعي. تحدث كإنسان بدون سرد خطوات أو قوائم طويلة. \n- لو الطلب غير واضح، اسأل 1-2 أسئلة قصيرة فقط.\n- لو الطلب واضح، رد بجملة قصيرة مثل: \"تمام، أبدأ؟\" ثم انتظر كلمة الموافقة: ابدأ\n- لا تُظهر أي JSON أو حالات داخلية."
         }
@@ -149,7 +134,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $json.text }}",
+        "text": "={{ 'conversation_summary=' + ($json.conversation_summary || '') + '\\nlast_request_text=' + ($json.last_request_text || '') + '\\nrecent_messages=' + ($json.conversation_tail_recent_formatted || '') + '\\nrequest=' + ($json.extraction_text || '') }}",
         "options": {
           "systemMessage": "استخلص طلب التغيير من سياق المحادثة السابقة. أعد JSON فقط بدون شرح.\nالشكل المطلوب:\n{\n  \"goal\": \"...\",\n  \"details\": \"...\",\n  \"scope_files\": [\"...\"],\n  \"constraints\": [\"...\"]\n}\nإذا لم تذكر ملفات محددة اجعل scope_files مصفوفة فارغة."
         }
@@ -193,7 +178,7 @@
             {
               "id": "contract",
               "name": "contract",
-              "value": "={{ {\n  request_id: $json.request_id,\n  project: {\n    key: 'shop3',\n    repo_owner: 'REPLACE_ME',\n    repo_name: 'REPLACE_ME',\n    base_branch: 'main',\n    server_path: '/var/www/shop3',\n    pm2_process: 'shop3-api',\n    frontend_folder: 'frontend'\n  },\n  change_request: $json.change_request,\n  spec: {\n    technical_spec: '',\n    acceptance_criteria: '',\n    edge_cases: '',\n    non_goals: ''\n  },\n  prompts: {\n    programmer_prompt: ''\n  },\n  code_output: {\n    patch_diff: '',\n    files_changed: [],\n    notes: ''\n  },\n  pr: {\n    branch: '',\n    title: '',\n    body: '',\n    url: '',\n    merged: false\n  },\n  status: 'ENGINEERING_PROMPT',\n  logs: []\n} }}",
+              "value": "={{ {\n  request_id: $json.request_id,\n  project: $json.project_registry.shop3,\n  memory: {\n    conversation_summary: $json.conversation_summary,\n    last_request_text: $json.last_request_text,\n    tail_formatted: $json.conversation_tail_formatted\n  },\n  change_request: $json.change_request,\n  spec: {\n    technical_spec: '',\n    acceptance_criteria: '',\n    edge_cases: '',\n    non_goals: ''\n  },\n  prompts: {\n    programmer_prompt: ''\n  },\n  code_output: {\n    patch_diff: '',\n    files_changed: [],\n    notes: ''\n  },\n  pr: {\n    branch: '',\n    title: '',\n    body: '',\n    url: '',\n    merged: false\n  },\n  status: 'ENGINEERING_PROMPT',\n  logs: []\n} }}",
               "type": "json"
             }
           ]
@@ -212,7 +197,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ 'project=' + JSON.stringify($json.contract.project) + '\nchange_request=' + JSON.stringify($json.contract.change_request) }}",
+        "text": "={{ 'project=' + JSON.stringify($json.contract.project) + '\\nchange_request=' + JSON.stringify($json.contract.change_request) + '\\nconversation_summary=' + ($json.contract.memory.conversation_summary || '') + '\\nlast_request_text=' + ($json.contract.memory.last_request_text || '') + '\\nrecent_messages=' + ($json.contract.memory.tail_formatted || '') }}",
         "options": {
           "systemMessage": "أنت مهندس برومبت. اكتب المواصفات التقنية باختصار ووضوح.\nالمدخل: project + change_request.\nالمخرج: JSON فقط يحتوي:\n{\n  \"technical_spec\": \"...\",\n  \"acceptance_criteria\": [\"...\"],\n  \"edge_cases\": [\"...\"],\n  \"non_goals\": [\"...\"],\n  \"programmer_prompt\": \"...\"\n}\nقيود مهمة للـ programmer_prompt:\n- تغييرات أقل ما يمكن وبشكل آمن.\n- لا تعيد هيكلة إلا عند الضرورة.\n- لا تسرب أسرار.\n- احترام وجود مجلد frontend.\n- اطلب إخراج Unified Diff Patch.\n"
         }
@@ -252,7 +237,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $json.contract.prompts.programmer_prompt }}",
+        "text": "={{ 'conversation_summary=' + ($json.contract.memory.conversation_summary || '') + '\\nlast_request_text=' + ($json.contract.memory.last_request_text || '') + '\\nrecent_messages=' + ($json.contract.memory.tail_formatted || '') + '\\n\\n' + $json.contract.prompts.programmer_prompt }}",
         "options": {
           "systemMessage": "أنت مبرمج. التزم بالتعليمات بدقة.\nالمخرج: JSON فقط بالشكل التالي:\n{\n  \"patch_diff\": \"...\",\n  \"files_changed\": [\"...\"],\n  \"notes\": \"...\",\n  \"needs_clarification\": false,\n  \"question\": \"\"\n}\nقيود مهمة:\n- لا تخترع ملفات غير موجودة.\n- لو غير متأكد من الملفات، اجعل needs_clarification=true واكتب سؤالاً واحداً قصيراً في question.\n- patch_diff يجب أن يكون Unified Diff."
         }
@@ -395,7 +380,7 @@
     },
     {
       "parameters": {
-        "workflowId": "github_pr_agent",
+        "workflowId": "={{ $json.contract.project.github_pr_workflow_id }}",
         "options": {}
       },
       "id": "18",
@@ -451,11 +436,169 @@
     },
     {
       "parameters": {
-        "options": {}
+        "language": "javascript",
+        "jsCode": "const data = $getWorkflowStaticData('global');\nconst chatId = String($json.chat_id || 'unknown');\nif (!data.chats) data.chats = {};\nconst chat = data.chats[chatId] || {\n  last_request_text: '',\n  conversation_tail: [],\n  conversation_summary: '',\n  status: 'DISCUSSING'\n};\n\nconst text = String($json.text || '').trim();\nconst isApproval = text === 'ابدأ';\nconst now = new Date().toISOString();\n\nconst tail = Array.isArray(chat.conversation_tail) ? chat.conversation_tail : [];\nlet summary = String(chat.conversation_summary || '');\n\nfunction appendTail(item) {\n  tail.push(item);\n}\n\nif (text) {\n  appendTail({ role: 'user', text, ts: now });\n}\n\nif (!isApproval && text) {\n  chat.last_request_text = text;\n  chat.status = 'DISCUSSING';\n}\n\nconst keywords = [\n  'هدف', 'مشكلة', 'خطأ', 'اريد', 'لا اريد', 'shop3', 'frontend', 'api', 'login', 'payment', 'deploy'\n];\n\nfunction shouldKeep(line) {\n  const lower = line.toLowerCase();\n  return keywords.some((k) => lower.includes(k));\n}\n\nfunction normalizeLine(line) {\n  return line.replace(/\\s+/g, ' ').trim();\n}\n\nfunction summarizeItems(items, existingSummary) {\n  const maxLen = 2000;\n  const existingLines = new Set(\n    existingSummary\n      .split('\\n')\n      .map((line) => normalizeLine(line))\n      .filter(Boolean)\n  );\n  const newLines = [];\n  for (const item of items) {\n    if (!item || !item.text) continue;\n    if (!shouldKeep(item.text)) continue;\n    const line = normalizeLine(`${item.ts} ${item.role}: ${item.text}`);\n    if (line && !existingLines.has(line)) {\n      existingLines.add(line);\n      newLines.push(line);\n    }\n  }\n  let combined = existingSummary ? `${existingSummary}\\n${newLines.join('\\n')}` : newLines.join('\\n');\n  if (combined.length > maxLen) {\n    combined = combined.slice(-maxLen);\n  }\n  return combined.trim();\n}\n\nif (tail.length > 20) {\n  const overflow = tail.splice(0, tail.length - 20);\n  summary = summarizeItems(overflow, summary);\n}\n\nchat.conversation_tail = tail;\nchat.conversation_summary = summary;\n\nconst hasLastRequest = Boolean(chat.last_request_text);\nif (isApproval && hasLastRequest) {\n  chat.status = 'ENGINEERING_PROMPT';\n} else if (isApproval && !hasLastRequest) {\n  chat.status = 'DISCUSSING';\n}\n\ndata.chats[chatId] = chat;\n\nconst tailFormatted = tail.map((item) => `${item.ts} ${item.role}: ${item.text}`).join('\\n');\nconst recentTail = tail.slice(-10).map((item) => `${item.ts} ${item.role}: ${item.text}`).join('\\n');\n\nreturn [\n  {\n    ...$json,\n    is_approval: isApproval,\n    has_last_request: hasLastRequest,\n    last_request_text: chat.last_request_text,\n    conversation_tail: tail,\n    conversation_tail_formatted: tailFormatted,\n    conversation_tail_recent_formatted: recentTail,\n    conversation_summary: summary,\n    extraction_text: isApproval ? chat.last_request_text : text,\n    local_status: chat.status\n  }\n];\n"
       },
       "id": "21",
-      "name": "OpenAI Chat Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "name": "Memory Store (Local)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "project_registry",
+              "name": "project_registry",
+              "value": "={{ ({\n  shop3: {\n    key: 'shop3',\n    repo_owner: 'REPLACE_ME',\n    repo_name: 'REPLACE_ME',\n    base_branch: 'main',\n    server_path: '/var/www/shop3',\n    pm2_process: 'shop3-api',\n    frontend_folder: 'frontend',\n    github_pr_workflow_id: 'REPLACE_ME_ID'\n  }\n}) }}",
+              "type": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "22",
+      "name": "Local Project Registry",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        40,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "message",
+              "name": "message",
+              "value": "={{ ({ content: 'ما هو الطلب الذي تريد تنفيذه؟' }) }}",
+              "type": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "23",
+      "name": "Ask For Request",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -180,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_last_request }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "isEqual",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "24",
+      "name": "Has Last Request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -360,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.contract.project.github_pr_workflow_id }}",
+              "rightValue": "REPLACE_ME_ID",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "leftValue": "={{ $json.contract.project.github_pr_workflow_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "25",
+      "name": "Has github_pr_workflow_id?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "message",
+              "name": "message",
+              "value": "={{ ({ content: 'حدد workflow id ل github_pr_agent في Local Project Registry' }) }}",
+              "type": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "26",
+      "name": "Missing github_pr_workflow_id",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1960,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "27",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1,
       "position": [
         -120,
@@ -481,7 +624,7 @@
       "main": [
         [
           {
-            "node": "Is Approval?",
+            "node": "Memory Store (Local)",
             "type": "main",
             "index": 0
           }
@@ -492,7 +635,7 @@
       "main": [
         [
           {
-            "node": "Extract Change Request",
+            "node": "Has Last Request?",
             "type": "main",
             "index": 0
           }
@@ -501,22 +644,6 @@
           {
             "node": "Supervisor",
             "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Window Buffer Memory": {
-      "ai_memory": [
-        [
-          {
-            "node": "Supervisor",
-            "type": "ai_memory",
-            "index": 0
-          },
-          {
-            "node": "Extract Change Request",
-            "type": "ai_memory",
             "index": 0
           }
         ]
@@ -548,7 +675,7 @@
       "main": [
         [
           {
-            "node": "Init Contract",
+            "node": "Local Project Registry",
             "type": "main",
             "index": 0
           }
@@ -643,7 +770,7 @@
       "main": [
         [
           {
-            "node": "Call github_pr_agent",
+            "node": "Has github_pr_workflow_id?",
             "type": "main",
             "index": 0
           }
@@ -672,7 +799,87 @@
         ]
       ]
     },
-    "OpenAI Chat Model": {
+    "Memory Store (Local)": {
+      "main": [
+        [
+          {
+            "node": "Is Approval?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Last Request?": {
+      "main": [
+        [
+          {
+            "node": "Extract Change Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask For Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask For Request": {
+      "main": [
+        [
+          {
+            "node": "Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Local Project Registry": {
+      "main": [
+        [
+          {
+            "node": "Init Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has github_pr_workflow_id?": {
+      "main": [
+        [
+          {
+            "node": "Call github_pr_agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Missing github_pr_workflow_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missing github_pr_workflow_id": {
+      "main": [
+        [
+          {
+            "node": "Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
       "ai_languageModel": [
         [
           {
