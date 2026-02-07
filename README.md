@@ -25,15 +25,21 @@ This repository contains the **Supervisor Orchestrator** workflow for handling u
 
 ## 🔐 Required credentials (placeholders)
 You must configure these credentials in n8n:
-- **LLM Provider** (OpenAI/Codex via API)
-  - Credential name can be anything, but the workflow expects an LLM Chat node to be connected.
+- **Google Gemini (PaLM)**
+  1. Create an API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+  2. In n8n, create new credentials: **Google Gemini (PaLM) API** (built-in n8n credentials type).
+  3. Select that credential in the **Google Gemini Chat Model** node.
 - **Telegram Trigger + Telegram Send Message**
   - Bot token for receiving and sending messages
 
 ---
 
 ## 🧭 Project registry
-Project configuration lives in **`project-registry.json`**.
+Because n8n workflows cannot read repo files after import, the workflow uses an **in-workflow registry**:
+- Node: **Local Project Registry**
+- Update `github_pr_workflow_id` after importing Repo 2.
+
+`project-registry.json` remains as a reference template.
 
 To add future shops, edit:
 ```
@@ -46,6 +52,9 @@ Current entry (shop3) includes:
 - `server_path: /var/www/shop3`
 - `pm2_process: shop3-api`
 - `frontend_folder: frontend`
+- `github_pr_workflow_id: REPLACE_ME_ID`
+
+> **Important:** After importing the Repo 2 workflow (github_pr_agent), copy its workflow **ID** into **Local Project Registry → github_pr_workflow_id**. The workflow is called by ID (not name).
 
 ---
 
