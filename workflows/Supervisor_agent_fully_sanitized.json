@@ -178,7 +178,7 @@
             {
               "id": "contract",
               "name": "contract",
-              "value": "={{ {\n  request_id: $json.request_id,\n  project: $json.project_registry.shop3,\n  memory: {\n    conversation_summary: $json.conversation_summary,\n    last_request_text: $json.last_request_text,\n    tail_formatted: $json.conversation_tail_formatted\n  },\n  change_request: $json.change_request,\n  spec: {\n    technical_spec: '',\n    acceptance_criteria: '',\n    edge_cases: '',\n    non_goals: ''\n  },\n  prompts: {\n    programmer_prompt: ''\n  },\n  code_output: {\n    patch_diff: '',\n    files_changed: [],\n    notes: ''\n  },\n  pr: {\n    branch: '',\n    title: '',\n    body: '',\n    url: '',\n    merged: false\n  },\n  status: 'ENGINEERING_PROMPT',\n  logs: []\n} }}",
+              "value": "={{ (() => {\n  const project = $json.project_registry.shop3;\n  return {\n    request_id: $json.request_id,\n    project: {\n      key: project.key,\n      repo_owner: project.repo_owner,\n      repo_name: project.repo_name,\n      base_branch: project.base_branch,\n      server_path: project.server_path,\n      pm2_process: project.pm2_process,\n      frontend_folder: project.frontend_folder,\n      github_pr_workflow_id: project.github_pr_workflow_id\n    },\n    memory: {\n      conversation_summary: $json.conversation_summary,\n      last_request_text: $json.last_request_text,\n      tail_formatted: $json.conversation_tail_formatted\n    },\n    change_request: $json.change_request,\n    spec: {\n      technical_spec: '',\n      acceptance_criteria: '',\n      edge_cases: '',\n      non_goals: ''\n    },\n    prompts: {\n      programmer_prompt: ''\n    },\n    code_output: {\n      patch_diff: '',\n      files_changed: [],\n      notes: ''\n    },\n    pr: {\n      branch: '',\n      title: '',\n      body: '',\n      url: '',\n      merged: false\n    },\n    status: 'ENGINEERING_PROMPT',\n    logs: []\n  };\n})() }}",
               "type": "json"
             }
           ]
@@ -380,7 +380,20 @@
     },
     {
       "parameters": {
-        "workflowId": "={{ $json.contract.project.github_pr_workflow_id }}",
+        "jsCode": "return [$json.contract];\n"
+      },
+      "id": "28",
+      "name": "Use Contract Root",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.project.github_pr_workflow_id }}",
         "options": {}
       },
       "id": "18",
@@ -388,7 +401,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [
-        1760,
+        2160,
         640
       ]
     },
@@ -854,7 +867,7 @@
       "main": [
         [
           {
-            "node": "Call github_pr_agent",
+            "node": "Use Contract Root",
             "type": "main",
             "index": 0
           }
@@ -873,6 +886,17 @@
         [
           {
             "node": "Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Contract Root": {
+      "main": [
+        [
+          {
+            "node": "Call github_pr_agent",
             "type": "main",
             "index": 0
           }
